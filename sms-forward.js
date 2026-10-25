@@ -1,3 +1,39 @@
+// ==================== 用户配置区（在这里统一填写变量） ====================
+const userConfig = {
+  // 是否停用转发：true 时收到短信不做任何转发
+  disabled: false,
+
+  // 转发地址（必填）：收到短信后 POST JSON 到这个 URL
+  webhookUrl: 'https://example.com/webhook',
+
+  // 设备 ID（自己填写）
+  deviceId: 'iphonex',
+
+  // 收件手机号（本机号码，可以自己填写，留空则为空字符串）
+  recipient: '',
+
+  // SIM 卡号：1 或 2
+  simNumber: 1,
+
+  // 固定使用的 webhookId；留空则每次随机生成
+  webhookId: '',
+
+  // 只转发号码匹配该正则的短信，留空表示不限制
+  senderAllow: '',
+  // 号码匹配该正则的短信不转发，留空表示不限制
+  senderDeny: '',
+  // 只转发内容匹配该正则的短信，留空表示不限制
+  textAllow: '',
+  // 内容匹配该正则的短信不转发，留空表示不限制
+  textDeny: '',
+
+  // 提交给腾讯/360 等接口的内容是否将数字替换为随机数字（避免上传真实短信）
+  replaceNum: true,
+  // 是否不提交数据给腾讯/360 等接口
+  noPost: false,
+}
+// =========================================================================
+
 const key = 'sms_forward'
 
 const config = {
@@ -12,30 +48,16 @@ const config = {
 }
 const $ = new Env(key)
 
-const KEY_INITED = `@ChinaTelecomOperators.${key}.inited`
-const KEY_TYPE = `@ChinaTelecomOperators.${key}.type`
-const KEY_KEYS = `@ChinaTelecomOperators.${key}.keys`
-
-const keys = `${$.getdata(KEY_KEYS) || ''}`
-  .split(',')
-  .map(i => i.trim())
-  .filter(i => i.length > 0)
-keys.unshift(key)
-$.log(`ℹ️ 所有配置的 key: ${keys.join(', ')}`)
-
-$.setdata(new Date().toLocaleString('zh'), KEY_INITED)
-
 let result
 
 !(async () => {
-  const KEY_DISABLED = `@ChinaTelecomOperators.${key}.disabled`
-  const disabled = $.getdata(KEY_DISABLED)
-
-  if (String(disabled) === 'true') {
+  if (userConfig.disabled) {
     $.log('ℹ️ 已禁用')
     return
   }
-  const type = $.getdata(KEY_TYPE) || 'tencent'
+
+  const requestUrl = String($.lodash_get($request, 'url') || '')
+  const type = requestUrl.includes('360.cn') ? '360' : 'tencent'
 
   let input = $request.body
   $.log('ℹ️ 请求')
@@ -48,178 +70,39 @@ let result
   }
   $.log('ℹ️ 解析后的请求')
   $.log(input)
-  let text
-  let sender
-  if (type === 'tencent') {
-    text = $.lodash_get(input, $.lodash_get(config, `${type}.text`))
-    sender = $.lodash_get(input, $.lodash_get(config, `${type}.sender`))
-  } else if (type === '360') {
-    text = $.lodash_get(input, $.lodash_get(config, `${type}.text`))
-    sender = $.lodash_get(input, $.lodash_get(config, `${type}.sender`))
-  } else {
-    throw new Error(`不支持的类型: ${type}`)
-  }
+
+  let text = $.lodash_get(input, config[type].text)
+  let sender = $.lodash_get(input, config[type].sender)
   sender = sender == null ? '' : `${sender}`
   text = text == null ? '' : `${text}`
   console.log(`号码 ${sender}`)
   console.log(`内容 ${text}`)
 
-  const fn = async (key, index) => {
-    $.log(`👉🏻 [${index}][${key}] 配置开始`)
-    const KEY_DISABLED = `@ChinaTelecomOperators.${key}.disabled`
-    const disabled = $.getdata(KEY_DISABLED)
-
-    if (String(disabled) === 'true') {
-      $.log(`👉🏻 [${index}][${key}] 配置已禁用`)
-      return
-    }
-
-    const KEY_SENDER_ALLOW = `@ChinaTelecomOperators.${key}.sender_allow`
-    const KEY_SENDER_DENY = `@ChinaTelecomOperators.${key}.sender_deny`
-    const KEY_TEXT_ALLOW = `@ChinaTelecomOperators.${key}.text_allow`
-    const KEY_TEXT_DENY = `@ChinaTelecomOperators.${key}.text_deny`
-
-    const KEY_TITLE = `@ChinaTelecomOperators.${key}.title`
-    const KEY_SUBTITLE = `@ChinaTelecomOperators.${key}.subtitle`
-    const KEY_BODY = `@ChinaTelecomOperators.${key}.body`
-    const KEY_BARK = `@ChinaTelecomOperators.${key}.bark`
-    const KEY_PUSHDEER = `@ChinaTelecomOperators.${key}.pushdeer`
-
-    const senderAllow = $.getdata(KEY_SENDER_ALLOW) || ''
-    const senderAllowRegExp = new RegExp(senderAllow)
-    const senderDeny = $.getdata(KEY_SENDER_DENY) || ''
-    const senderDenyRegExp = new RegExp(senderDeny)
-    const textAllow = $.getdata(KEY_TEXT_ALLOW) || ''
-    const textAllowRegExp = new RegExp(textAllow)
-    const textDeny = $.getdata(KEY_TEXT_DENY) || ''
-    const textDenyRegExp = new RegExp(textDeny)
-
-    let isSenderAllow = true
-    let isTextAllow = true
-    if (senderAllow) {
-      console.log(`👉🏻 [${index}][${key}] 允许转发的号码的正则字符串 ${senderAllow}`)
-      console.log(`👉🏻 [${index}][${key}] 允许转发的号码的正则 ${senderAllowRegExp}`)
-      if (!senderAllowRegExp.test(sender)) {
-        console.log(`👉🏻 [${index}][${key}] ${sender} 不符合允许转发的号码 ❌不会转发`)
-        isSenderAllow = false
-      }
-    } else if (senderDeny) {
-      console.log(`👉🏻 [${index}][${key}] 不允许转发的号码的正则字符串 ${senderDeny}`)
-      console.log(`👉🏻 [${index}][${key}] 不允许转发的号码的正则 ${senderDenyRegExp}`)
-      if (senderDenyRegExp.test(sender)) {
-        console.log(`👉🏻 [${index}][${key}] ${sender} 符合不允许转发的号码 ❌不会转发`)
-        isSenderAllow = false
-      }
-    }
-    if (textAllow) {
-      console.log(`👉🏻 [${index}][${key}] 允许转发的内容的正则字符串 ${textAllow}`)
-      console.log(`👉🏻 [${index}][${key}] 允许转发的内容的正则 ${textAllowRegExp}`)
-      if (!textAllowRegExp.test(text)) {
-        console.log(`👉🏻 [${index}][${key}] ${text} 不符合允许转发的内容 ❌不会转发`)
-        isTextAllow = false
-      }
-    } else if (textDeny) {
-      console.log(`👉🏻 [${index}][${key}] 不允许转发的内容的正则字符串 ${textDeny}`)
-      console.log(`👉🏻 [${index}][${key}] 不允许转发的内容的正则 ${textDenyRegExp}`)
-      if (textDenyRegExp.test(text)) {
-        console.log(`👉🏻 [${index}][${key}] ${text} 符合不允许转发的内容 ❌不会转发`)
-        isTextAllow = false
-      }
-    }
-    if (!isSenderAllow || !isTextAllow) {
-      console.log('已判断号码和内容 ❌ 不会转发')
-      return
-    }
-    const KEY_CODE_TEST = `@ChinaTelecomOperators.${key}.code_test`
-    const KEY_CODE_GET = `@ChinaTelecomOperators.${key}.code_get`
-
-    const codeTest = $.getdata(KEY_CODE_TEST) || '.+(码)'
-    const codeTestRegExp = new RegExp(codeTest)
-    const codeGet = $.getdata(KEY_CODE_GET) || '\\d{4,6}'
-    const codeGetRegExp = new RegExp(codeGet)
-
-    let hasCode
-    let code
-    if (codeTest) {
-      console.log(`👉🏻 [${index}][${key}] 判断内容是否包含验证码的正则字符串 ${codeTest}`)
-      console.log(`👉🏻 [${index}][${key}] 判断内容是否包含验证码的正则 ${codeTestRegExp}`)
-      if (codeTestRegExp.test(text)) {
-        console.log(`👉🏻 [${index}][${key}] ${text} 包含验证码 ✅`)
-        hasCode = true
-        if (codeGet) {
-          console.log(`👉🏻 [${index}][${key}] 从内容提取验证码的正则字符串 ${codeGet}`)
-          console.log(`👉🏻 [${index}][${key}] 从内容提取验证码的正则 ${codeGetRegExp}`)
-          const matched = text.match(codeGetRegExp)
-          if (matched) {
-            code = matched[0]
-            if (code) {
-              console.log(`👉🏻 [${index}][${key}] ${text} 提取到验证码 ${code} ✅`)
-            }
-          }
-        }
-      }
-    }
-    let copy = text
-    if (code) {
-      console.log(`👉🏻 [${index}][${key}] 判断包含验证码 且提取到验证码 将复制验证码`)
-      copy = code
-    }
-    console.log(`👉🏻 [${index}][${key}] 📋 复制的内容 ${copy}`)
-    const msgData = {
-      sender,
-      text,
-      hasCode,
-      code,
-      copy,
-    }
-    const titleTpl = $.getdata(KEY_TITLE) || '[号码]'
-    const subtitleTpl = $.getdata(KEY_SUBTITLE) || '[码][复制提示]'
-    const bodyTpl = $.getdata(KEY_BODY) || '[内容]'
-
-    const title = renderTpl(titleTpl, msgData)
-    const subtitle = renderTpl(subtitleTpl, msgData)
-    const body = renderTpl(bodyTpl, msgData)
-
-    console.log(`👉🏻 [${index}][${key}] 标题 ${title}`)
-    console.log(`👉🏻 [${index}][${key}] 副标题 ${subtitle}`)
-    console.log(`👉🏻 [${index}][${key}] 正文 ${body}`)
-
-    await notify(title, subtitle, body, { copy, KEY_PUSHDEER, KEY_BARK })
-    $.log(`👉🏻 [${index}][${key}] 配置结束`)
-  }
-  for (const [index, key] of keys.entries()) {
-    await fn(key, index)
+  if (isAllowed(sender, text)) {
+    await forwardWebhook(sender, text)
+  } else {
+    console.log('已判断号码和内容 ❌ 不会转发')
   }
 
-  const KEY_REPLACE_NUM = `@ChinaTelecomOperators.${key}.replace_num`
-  const KEY_NO_POST = `@ChinaTelecomOperators.${key}.no_post`
-
-  const noPost = $.getdata(KEY_NO_POST)
-
-  if (String(noPost) === 'true') {
+  if (userConfig.noPost) {
     $.log('ℹ️ 不提交数据给腾讯/360等接口')
     result = { fuck: type }
   } else {
     $.log('ℹ️ 将提交数据给腾讯/360等接口')
     result = input
-    const replaceNnum = $.getdata(KEY_REPLACE_NUM)
 
-    if (String(replaceNnum) !== 'false') {
+    if (userConfig.replaceNum) {
       $.log('ℹ️ 替换数字')
       $.log(`ℹ️ 原内容 ${text}`)
       text = text.replace(/\d/g, i => Math.floor(Math.random() * (9 - 1 + 1)) + 1)
       $.log(`🆕 新内容 ${text}`)
-      if (type === 'tencent') {
-        lodash_set(result, $.lodash_get(config, `${type}.text`), text)
-      } else if (type === '360') {
-        lodash_set(result, $.lodash_get(config, `${type}.text`), text)
-      }
+      lodash_set(result, config[type].text, text)
     }
   }
 })()
   .catch(e => {
     console.log(e)
-    notify(`短信转发`, `❌`, `${$.lodash_get(e, 'message') || $.lodash_get(e, 'error') || e}`, {})
+    $.msg('短信转发', '❌', `${$.lodash_get(e, 'message') || $.lodash_get(e, 'error') || e}`)
   })
   .finally(() => {
     console.log(`提交给腾讯/360等接口的数据`)
@@ -227,74 +110,113 @@ let result
     $.done(result)
   })
 
-async function notify(title, subtitle, body, { copy, KEY_PUSHDEER, KEY_BARK }) {
-  const pushdeer = $.getdata(KEY_PUSHDEER)
-  const bark = $.getdata(KEY_BARK)
+function isAllowed(sender, text) {
+  const { senderAllow, senderDeny, textAllow, textDeny } = userConfig
+  if (senderAllow) {
+    console.log(`允许转发的号码的正则字符串 ${senderAllow}`)
+    if (!new RegExp(senderAllow).test(sender)) {
+      console.log(`${sender} 不符合允许转发的号码 ❌不会转发`)
+      return false
+    }
+  } else if (senderDeny) {
+    console.log(`不允许转发的号码的正则字符串 ${senderDeny}`)
+    if (new RegExp(senderDeny).test(sender)) {
+      console.log(`${sender} 符合不允许转发的号码 ❌不会转发`)
+      return false
+    }
+  }
+  if (textAllow) {
+    console.log(`允许转发的内容的正则字符串 ${textAllow}`)
+    if (!new RegExp(textAllow).test(text)) {
+      console.log(`${text} 不符合允许转发的内容 ❌不会转发`)
+      return false
+    }
+  } else if (textDeny) {
+    console.log(`不允许转发的内容的正则字符串 ${textDeny}`)
+    if (new RegExp(textDeny).test(text)) {
+      console.log(`${text} 符合不允许转发的内容 ❌不会转发`)
+      return false
+    }
+  }
+  return true
+}
 
-  if (pushdeer || bark) {
-    if (pushdeer) {
-      try {
-        const url = pushdeer.replace('[推送全文]', encodeURIComponent(`${title}\n${subtitle}\n${body}`))
-        $.log(`开始 PushDeer 请求: ${url}`)
-        const res = await $.http.get({ url })
-        // console.log(res)
-        const status = $.lodash_get(res, 'status')
-        $.log('↓ res status')
-        $.log(status)
-        let resBody = String($.lodash_get(res, 'body') || $.lodash_get(res, 'rawBody'))
-        try {
-          resBody = JSON.parse(resBody)
-        } catch (e) {}
-        $.log('↓ res body')
-        console.log($.toStr(resBody))
-        if (!['0', '200'].includes(String($.lodash_get(resBody, 'code'))) && !$.lodash_get(resBody, 'isSuccess')) {
-          throw new Error($.lodash_get(resBody, 'errorMessage') || $.lodash_get(resBody, 'message') || $.lodash_get(resBody, 'msg') || '未知错误')
-        }
-      } catch (e) {
-        console.log(e)
-        $.msg('短信转发', `❌ PushDeer 请求`, `${$.lodash_get(e, 'message') || $.lodash_get(e, 'error') || e}`, {})
-      }
-    }
-    if (bark) {
-      try {
-        const url = bark
-          .replace('[推送标题]', encodeURIComponent(title))
-          .replace('[推送内容]', encodeURIComponent(`${subtitle}\n${body}`))
-          .replace('[复制内容]', encodeURIComponent(copy))
-        $.log(`开始 bark 请求: ${url}`)
-        const res = await $.http.get({ url })
-        // console.log(res)
-        const status = $.lodash_get(res, 'status')
-        $.log('↓ res status')
-        $.log(status)
-        let resBody = String($.lodash_get(res, 'body') || $.lodash_get(res, 'rawBody'))
-        try {
-          resBody = JSON.parse(resBody)
-        } catch (e) {}
-        $.log('↓ res body')
-        console.log($.toStr(resBody))
-        if (!['0', '200'].includes(String($.lodash_get(resBody, 'code'))) && !$.lodash_get(resBody, 'isSuccess')) {
-          throw new Error($.lodash_get(resBody, 'errorMessage') || $.lodash_get(resBody, 'message') || $.lodash_get(resBody, 'msg') || '未知错误')
-        }
-      } catch (e) {
-        console.log(e)
-        $.msg('短信转发', `❌ bark 请求`, `${$.lodash_get(e, 'message') || $.lodash_get(e, 'error') || e}`, {})
-      }
-    }
-  } else {
-    $.msg(`[无转发 本地预览] ${title}`, subtitle, body)
+async function forwardWebhook(sender, text) {
+  const url = userConfig.webhookUrl
+  if (!url) {
+    $.log('⚠️ 未配置 webhookUrl，跳过 Webhook 转发')
+    $.msg('[短信转发 未配置 Webhook 本地预览]', sender, text)
+    return
+  }
+
+  const body = {
+    deviceId: userConfig.deviceId,
+    event: 'sms:received',
+    id: `I_${randomStr(19)}`,
+    payload: {
+      message: text,
+      receivedAt: isoTime(new Date()),
+      messageId: randomHex(8),
+      phoneNumber: sender,
+      recipient: userConfig.recipient,
+      sender: sender,
+      simNumber: userConfig.simNumber,
+    },
+    webhookId: userConfig.webhookId || randomStr(21),
+  }
+
+  const req = {
+    url,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+    },
+    body: JSON.stringify(body),
+  }
+
+  $.log('ℹ️ Webhook 请求')
+  $.log($.toStr(body))
+  const res = await $.http.post(req)
+  const status = Number($.lodash_get(res, 'status'))
+  const resBody = String($.lodash_get(res, 'body') || $.lodash_get(res, 'rawBody') || '')
+  $.log('↓ res status')
+  $.log(status)
+  $.log('↓ res body')
+  $.log(resBody)
+  if (!(status >= 200 && status < 300)) {
+    throw new Error(`Webhook 请求失败，状态码 ${status}`)
   }
 }
-function renderTpl(tpl, data) {
+
+// 生成指定长度的随机字符串
+function randomStr(length) {
+  const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_-'
+  let str = ''
+  for (let i = 0; i < length; i++) {
+    str += alphabet[Math.floor(Math.random() * alphabet.length)]
+  }
+  return str
+}
+
+// 生成指定长度的随机十六进制字符串
+function randomHex(length) {
+  const alphabet = '0123456789abcdef'
+  let str = ''
+  for (let i = 0; i < length; i++) {
+    str += alphabet[Math.floor(Math.random() * alphabet.length)]
+  }
+  return str
+}
+
+// 本地时区的 ISO 8601 时间，例如 2026-10-25T09:08:31.000+08:00
+function isoTime(date) {
+  const pad = (n, l = 2) => String(Math.abs(n)).padStart(l, '0')
+  const offset = -date.getTimezoneOffset()
+  const sign = offset >= 0 ? '+' : '-'
+  const abs = Math.abs(offset)
   return (
-    tpl
-      .replace('[号码]', data.sender || '')
-      .replace('[内容]', data.text || '')
-      .replace('[时间]', new Date().toLocaleString('zh'))
-      // .replace('[含码]', data.hasCode ? '✅' : '❌')
-      .replace('[复制提示]', data.code ? '(长按/下拉复制验证码)' : '(长按/下拉复制)')
-      .replace('[码]', data.code || '')
-      .replace(/  +/g, ' ')
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}` +
+    `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`
   )
 }
 
