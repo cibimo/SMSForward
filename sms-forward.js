@@ -7,43 +7,43 @@ function readArg(name, fallback) {
   return fallback
 }
 
-// ==================== 用户配置区 ====================
-// webhookUrl / deviceId / recipient / simNumber / webhookId 优先从 Loon 插件参数读取
-// （Loon → 配置 → 插件 → 短信转发 → 参数），插件参数未填写时才使用下面填写的默认值
+// ==================== 配置区 ====================
+// 全部配置都在 Loon 插件参数里填写（配置 → 插件 → 短信转发 → 参数），
+// 下面括号里的值只是插件参数未填写时的默认值
 const userConfig = {
-  // 是否停用转发：true 时收到短信不做任何转发
-  disabled: false,
+  // 是否停用转发：true 时收到短信不做任何转发（默认 false）
+  disabled: readArg('disabled', 'false') === 'true',
 
   // 转发地址（必填）：收到短信后 POST JSON 到这个 URL
   webhookUrl: readArg('webhookUrl', ''),
 
-  // 设备 ID（自己填写）
+  // 设备 ID（默认 iphonex）
   deviceId: readArg('deviceId', 'iphonex'),
 
-  // 收件手机号（本机号码，可以自己填写，留空则为空字符串）
+  // 收件手机号（本机号码，可留空）
   recipient: readArg('recipient', ''),
 
-  // SIM 卡号：1 或 2
+  // SIM 卡号：1 或 2（默认 1）
   simNumber: Number(readArg('simNumber', 1)) || 1,
 
   // 固定使用的 webhookId；留空则每次随机生成
   webhookId: readArg('webhookId', ''),
 
   // 只转发号码匹配该正则的短信，留空表示不限制
-  senderAllow: '',
+  senderAllow: readArg('senderAllow', ''),
   // 号码匹配该正则的短信不转发，留空表示不限制
-  senderDeny: '',
+  senderDeny: readArg('senderDeny', ''),
   // 只转发内容匹配该正则的短信，留空表示不限制
-  textAllow: '',
+  textAllow: readArg('textAllow', ''),
   // 内容匹配该正则的短信不转发，留空表示不限制
-  textDeny: '',
+  textDeny: readArg('textDeny', ''),
 
-  // 提交给腾讯/360 等接口的内容是否将数字替换为随机数字（避免上传真实短信）
-  replaceNum: true,
-  // 是否不提交数据给腾讯/360 等接口：true 时清空请求体后放行（云端拦截功能会失效）
-  noPost: false,
+  // 提交给腾讯/360 等接口的内容是否将数字替换为随机数字（默认 true）
+  replaceNum: readArg('replaceNum', 'true') !== 'false',
+  // 是否不提交数据给腾讯/360 等接口：true 时清空请求体后放行（默认 false）
+  noPost: readArg('noPost', 'false') === 'true',
 }
-// =========================================================================
+// ================================================
 
 const key = 'sms_forward'
 
