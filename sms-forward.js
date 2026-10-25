@@ -40,7 +40,7 @@ const userConfig = {
 
   // 提交给腾讯/360 等接口的内容是否将数字替换为随机数字（避免上传真实短信）
   replaceNum: true,
-  // 是否不提交数据给腾讯/360 等接口
+  // 是否不提交数据给腾讯/360 等接口：true 时清空请求体后放行（云端拦截功能会失效）
   noPost: false,
 }
 // =========================================================================
@@ -96,19 +96,18 @@ let result
   }
 
   if (userConfig.noPost) {
-    $.log('ℹ️ 不提交数据给腾讯/360等接口')
-    result = { fuck: type }
-  } else {
-    $.log('ℹ️ 将提交数据给腾讯/360等接口')
-    result = input
+    $.log('ℹ️ 不提交数据给腾讯/360等接口，将清空请求体')
+    return
+  }
+  $.log('ℹ️ 将提交数据给腾讯/360等接口')
+  result = input
 
-    if (userConfig.replaceNum) {
-      $.log('ℹ️ 替换数字')
-      $.log(`ℹ️ 原内容 ${text}`)
-      text = text.replace(/\d/g, i => Math.floor(Math.random() * (9 - 1 + 1)) + 1)
-      $.log(`🆕 新内容 ${text}`)
-      lodash_set(result, config[type].text, text)
-    }
+  if (userConfig.replaceNum) {
+    $.log('ℹ️ 替换数字')
+    $.log(`ℹ️ 原内容 ${text}`)
+    text = text.replace(/\d/g, i => Math.floor(Math.random() * (9 - 1 + 1)) + 1)
+    $.log(`🆕 新内容 ${text}`)
+    lodash_set(result, config[type].text, text)
   }
 })()
   .catch(e => {
@@ -116,9 +115,20 @@ let result
     $.msg('短信转发', '❌', `${$.lodash_get(e, 'message') || $.lodash_get(e, 'error') || e}`)
   })
   .finally(() => {
-    console.log(`提交给腾讯/360等接口的数据`)
-    console.log(result)
-    $.done(result)
+    // Loon 的 $done 改写请求必须用 { url, headers, body } 形式，直接传普通对象不会生效
+    if (userConfig.noPost) {
+      console.log('清空请求体后放行（不提交数据给腾讯/360等接口）')
+      $.done({ body: '' })
+      return
+    }
+    if (result == null) {
+      $.done({})
+      return
+    }
+    const body = $.toStr(result)
+    console.log('提交给腾讯/360等接口的数据')
+    console.log(body)
+    $.done({ body })
   })
 
 function isAllowed(sender, text) {
