@@ -1,9 +1,14 @@
 #!name=短信转发
-#!desc=收到短信后 POST JSON 到脚本顶部配置的 Webhook 地址 https://github.com/cibimo/SMSForward
+#!desc=收到短信后 POST JSON 到 Webhook。安装/编辑插件时填写参数：webhookUrl(必填)、deviceId、recipient、simNumber、webhookId(留空随机) https://github.com/cibimo/SMSForward
 #!openUrl=https://github.com/cibimo/SMSForward
 #!author=cibimo
 #!homepage=https://github.com/cibimo/SMSForward
 #!icon=https://raw.githubusercontent.com/cibimo/SMSForward/main/asset/1.png
+#!input = webhookUrl
+#!input = deviceId
+#!input = recipient
+#!input = simNumber
+#!input = webhookId
 
 [MITM]
 hostname=scan.call.f.360.cn,jprx.m.qq.com

@@ -1,22 +1,33 @@
-// ==================== 用户配置区（在这里统一填写变量） ====================
+// 读取 Loon 插件参数（安装/编辑插件时填写的值），未填写时返回 fallback
+function readArg(name, fallback) {
+  try {
+    const v = $persistentStore.read(name)
+    if (v != null && `${v}`.trim() !== '') return `${v}`.trim()
+  } catch (e) {}
+  return fallback
+}
+
+// ==================== 用户配置区 ====================
+// webhookUrl / deviceId / recipient / simNumber / webhookId 优先从 Loon 插件参数读取
+// （Loon → 配置 → 插件 → 短信转发 → 参数），插件参数未填写时才使用下面填写的默认值
 const userConfig = {
   // 是否停用转发：true 时收到短信不做任何转发
   disabled: false,
 
   // 转发地址（必填）：收到短信后 POST JSON 到这个 URL
-  webhookUrl: 'https://example.com/webhook',
+  webhookUrl: readArg('webhookUrl', ''),
 
   // 设备 ID（自己填写）
-  deviceId: 'iphonex',
+  deviceId: readArg('deviceId', 'iphonex'),
 
   // 收件手机号（本机号码，可以自己填写，留空则为空字符串）
-  recipient: '',
+  recipient: readArg('recipient', ''),
 
   // SIM 卡号：1 或 2
-  simNumber: 1,
+  simNumber: Number(readArg('simNumber', 1)) || 1,
 
   // 固定使用的 webhookId；留空则每次随机生成
-  webhookId: '',
+  webhookId: readArg('webhookId', ''),
 
   // 只转发号码匹配该正则的短信，留空表示不限制
   senderAllow: '',
